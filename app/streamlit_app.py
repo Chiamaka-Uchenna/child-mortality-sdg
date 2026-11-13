@@ -61,7 +61,8 @@ with tab_track:
     choice = st.selectbox("Country", [n for n, _ in names], index=[n for n, _ in names].index("Nigeria"))
     row = sdg[dict(names)[choice]]
     a, b, c = st.columns(3)
-    a.metric(f"Rate in {last}", f"{row['u5mr']:.0f} per 1,000", row["status"], delta_color="off")
+    label = row["status"] + (" · too close to call" if row["borderline"] else "")
+    a.metric(f"Rate in {last}", f"{row['u5mr']:.0f} per 1,000", label, delta_color="off")
     b.metric("Projected 2030", f"{row['projected_2030']:.0f} per 1,000")
     c.metric("Yearly reduction", f"{row['arr']:.1%}", "target met" if row["status"] == "Target met" else f"{row['required_arr']:.1%} needed", delta_color="off")
     history = s["map"]["values"][s["map"]["iso3"].index(row["iso3"])]
@@ -69,10 +70,20 @@ with tab_track:
                    "", "Deaths per 1,000 live births")
     figure.add_hline(y=25, line_dash="dot", line_color=GREY, annotation_text="Target: 25")
     show(figure)
-    status = st.selectbox("Show countries that are", ["Off track", "On track", "Target met"])
-    table = pd.DataFrame([r for r in s["sdg"] if r["status"] == status]).sort_values("projected_2030", ascending=False)
-    table = table[["country", "region", "u5mr", "arr", "projected_2030", "required_arr"]]
-    st.dataframe(table.style.format({"u5mr": "{:.0f}", "arr": "{:.1%}", "projected_2030": "{:.0f}", "required_arr": "{:.1%}"}), hide_index=True, width="stretch")
+    if row["status"] != "Target met":
+        st.write(f"How much does the choice of trend matter? On a 5-year trend the 2030 projection is {row['projected_5y']:.0f}, on the 10-year trend used here "
+                 f"{row['projected_2030']:.0f}, and on a 15-year trend {row['projected_15y']:.0f}."
+                 + (" This country is projected within five points of the target, so it could plausibly land on either side." if row["borderline"] else ""))
+    status = st.selectbox("Show countries that are", ["Off track", "On track", "Target met", "Too close to call"])
+    chosen = [r for r in s["sdg"] if (r["borderline"] if status == "Too close to call" else r["status"] == status)]
+    table = pd.DataFrame(chosen).sort_values("projected_2030", ascending=False)
+    table = table[["country", "region", "u5mr", "arr", "projected_2030", "projected_5y", "projected_15y", "borderline", "required_arr"]]
+    table = table.rename(columns={"projected_5y": "on 5-year trend", "projected_15y": "on 15-year trend", "borderline": "too close to call"})
+    st.dataframe(table.style.format({"u5mr": "{:.0f}", "arr": "{:.1%}", "projected_2030": "{:.0f}", "on 5-year trend": "{:.0f}", "on 15-year trend": "{:.0f}",
+                                     "required_arr": "{:.1%}"}), hide_index=True, width="stretch")
+    st.markdown("**Does the trend window change the picture?** Number of countries in each status, by the window used to estimate the trend.")
+    st.dataframe(pd.DataFrame(s["sensitivity"]), hide_index=True, width="stretch")
+    st.caption("Projections are single values without an uncertainty range. The UN's own uncertainty ranges around each mortality estimate are not carried into the projection.")
 
 with tab_whatif:
     st.caption("Pick a country and change its indicators. The model estimates the mortality rate typical of countries with that profile. "

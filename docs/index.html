@@ -38,11 +38,11 @@
 
   <section>
     <h2>2030 tracker</h2>
-    <p class="section-note">Each country's trend over the last ten years is projected forward to 2030. The required pace is the yearly reduction needed from now on to reach 25.</p>
+    <p class="section-note">Each country's trend over the last ten years is projected forward to 2030. The required pace is the yearly reduction needed from now on to reach 25. Projections are single values without an uncertainty range, so countries projected within five points of the target are marked too close to call, and each projection is also shown on a 5-year and a 15-year trend.</p>
     <div class="card">
       <div class="controls">
         <label class="field">Country<select id="f-country"></select></label>
-        <label class="field">Show in table<select id="f-status"><option>Off track</option><option>On track</option><option>Target met</option></select></label>
+        <label class="field">Show in table<select id="f-status"><option>Off track</option><option>On track</option><option>Target met</option><option>Too close to call</option></select></label>
       </div>
       <div class="result" style="margin-top:0;margin-bottom:16px">
         <div>
@@ -50,7 +50,7 @@
           <div class="big" id="trk-rate">–</div>
           <span class="badge" id="trk-status"></span>
         </div>
-        <div><p id="trk-text"></p><p id="trk-text2"></p></div>
+        <div><p id="trk-text"></p><p id="trk-text2"></p><p id="trk-text3"></p></div>
       </div>
       <div class="chart" id="c-country"></div>
       <div class="table-wrap" style="max-height:340px;margin-top:14px"><table id="t-sdg"></table></div>
@@ -100,7 +100,7 @@
     <h2>Method and limits</h2>
     <ul class="notes">
       <li>Data: World Bank World Development Indicators, 196 countries, 2000 onwards. Mortality estimates are from the UN Inter-agency Group for Child Mortality Estimation.</li>
-      <li>Projection: a log-linear trend over the last ten years, continued to 2030.</li>
+      <li>Projection: a log-linear trend over the last ten years, continued to 2030. Using a 5-year or 15-year trend instead changes the status of one country each time, and the count of off-track countries stays at 60 or 61. The UN's own uncertainty ranges around each mortality estimate are not carried into the projection.</li>
       <li>Model: gradient boosted trees with monotonic constraints (more immunisation, water or sanitation can never raise predicted mortality), validated by holding out whole countries.</li>
       <li>The model describes associations across countries, not causal effects. Estimates for countries without complete birth and death registration carry wide uncertainty, and national averages hide inequality within countries.</li>
     </ul>
@@ -168,7 +168,11 @@ const SLIDERS = [
     document.getElementById("trk-label").textContent = `${r.country}, ${s.last_year}`;
     document.getElementById("trk-rate").textContent = `${r.u5mr.toFixed(0)} per 1,000`;
     const badge = document.getElementById("trk-status");
-    badge.textContent = r.status; badge.className = `badge ${STATUS_CLASS[r.status]}`;
+    badge.textContent = r.borderline ? `${r.status} · too close to call` : r.status;
+    badge.className = `badge ${r.borderline ? "warning" : STATUS_CLASS[r.status]}`;
+    document.getElementById("trk-text3").textContent = r.status === "Target met" ? "" :
+      `How much does the choice of trend matter? On a 5-year trend the 2030 projection is ${r.projected_5y.toFixed(0)}, on the 10-year trend used here ${r.projected_2030.toFixed(0)}, and on a 15-year trend ${r.projected_15y.toFixed(0)}.` +
+      (r.borderline ? " This country is projected within five points of the target, so it could plausibly land on either side." : "");
     document.getElementById("trk-text").textContent = r.status === "Target met"
       ? `${r.country} is already at or below the target of 25.`
       : `On the trend of the last ten years, ${r.country} reaches ${r.projected_2030.toFixed(0)} per 1,000 in 2030.`;
@@ -193,10 +197,11 @@ const SLIDERS = [
     const status = document.getElementById("f-status").value;
     sdgTable.innerHTML = "";
     const head = sdgTable.insertRow();
-    ["Country", "Region", `Rate ${s.last_year}`, "Yearly reduction", "Projected 2030", "Reduction needed"].forEach((t) => { const th = document.createElement("th"); th.textContent = t; head.appendChild(th); });
-    s.sdg.filter((r) => r.status === status).sort((a, b) => b.projected_2030 - a.projected_2030).forEach((r) => {
+    ["Country", "Region", `Rate ${s.last_year}`, "Yearly reduction", "Projected 2030", "On 5-year trend", "On 15-year trend", "Reduction needed"].forEach((t) => { const th = document.createElement("th"); th.textContent = t; head.appendChild(th); });
+    s.sdg.filter((r) => (status === "Too close to call" ? r.borderline : r.status === status)).sort((a, b) => b.projected_2030 - a.projected_2030).forEach((r) => {
       const row = sdgTable.insertRow();
-      [r.country, r.region, r.u5mr.toFixed(0), `${(r.arr * 100).toFixed(1)}%`, r.projected_2030.toFixed(0), r.status === "Target met" ? "met" : `${(r.required_arr * 100).toFixed(1)}%`]
+      [r.borderline ? `${r.country} (too close to call)` : r.country, r.region, r.u5mr.toFixed(0), `${(r.arr * 100).toFixed(1)}%`, r.projected_2030.toFixed(0),
+        r.projected_5y.toFixed(0), r.projected_15y.toFixed(0), r.status === "Target met" ? "met" : `${(r.required_arr * 100).toFixed(1)}%`]
         .forEach((v) => { row.insertCell().textContent = v; });
     });
   };

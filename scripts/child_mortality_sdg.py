@@ -239,6 +239,53 @@ off[["country", "region", "u5mr", "arr", "projected_2030", "required_arr"]].head
 # The final figure is an estimate of the annual death toll in 2030 that lies above the target level in those countries if current trends continue. It assumes the number of births stays at its current level, so it is an order-of-magnitude figure, not a forecast.
 
 # %% [markdown]
+# ### How fragile is the classification?
+#
+# A single projected number hides two sources of doubt, so both are checked here.
+#
+# **1. The choice of trend window.** Ten years is a convention, not a law. A country whose progress has recently sped up or stalled will project differently on a 5-year or a 15-year trend. The classification is repeated with all three windows.
+#
+# **2. Countries near the line.** A country projected at 26 is labelled off track and one projected at 24 is labelled on track, but the data cannot really tell those apart. Any country that is above the target today and projected to land between 20 and 30 per 1,000 in 2030 is flagged as **too close to call**.
+
+# %%
+def classify(window):
+    out = {}
+    for iso3, group in panel[panel["year"] > LAST - window].groupby("iso3"):
+        group = group.sort_values("year")
+        if len(group) < 5:
+            continue
+        slope = np.polyfit(group["year"], np.log(group["u5mr"]), 1)[0]
+        current = float(group["u5mr"].iloc[-1])
+        projected = current * float(np.exp(slope * (2030 - LAST)))
+        out[iso3] = {"projected": projected, "status": "Target met" if current <= 25 else ("On track" if projected <= 25 else "Off track")}
+    return pd.DataFrame(out).T
+
+
+by_window = {window: classify(window) for window in (5, 10, 15)}
+sensitivity = pd.DataFrame({f"{window}-year trend": by_window[window]["status"].value_counts() for window in by_window})
+sensitivity = sensitivity.reindex(["Target met", "On track", "Off track"]).fillna(0).astype(int)
+sensitivity.index.name = "Status"
+
+for window in (5, 15):
+    sdg[f"projected_{window}y"] = sdg["iso3"].map(by_window[window]["projected"]).astype(float)
+    sdg[f"status_{window}y"] = sdg["iso3"].map(by_window[window]["status"])
+sdg["borderline"] = (sdg["u5mr"] > 25) & sdg["projected_2030"].between(20, 30)
+
+changed = sdg[(sdg["status"] != sdg["status_5y"]) | (sdg["status"] != sdg["status_15y"])]
+borderline = sdg[sdg["borderline"]].sort_values("projected_2030")
+print("Countries whose status changes with the trend window:")
+print(changed[["country", "u5mr", "projected_5y", "projected_2030", "projected_15y", "status_5y", "status", "status_15y"]].round(1).to_string(index=False))
+print()
+print(f"{len(borderline)} countries are too close to call (above 25 today, projected between 20 and 30 in 2030):")
+print(borderline[["country", "u5mr", "projected_5y", "projected_2030", "projected_15y", "status"]].round(1).to_string(index=False))
+sensitivity
+
+# %% [markdown]
+# The overall picture does not depend on the window: the number of off-track countries is 60 or 61 whichever trend is used. What does move is the label of individual countries near the line. The Philippines is on track on its 5-year trend and Bangladesh on its 15-year trend, and both are off track on the 10-year trend used above. For every country in the too-close-to-call list, "on track" or "off track" should be read as "within a few points of the target either way".
+#
+# One source of uncertainty is not captured at all. The mortality figures are themselves estimates produced by the UN Inter-agency Group for Child Mortality Estimation, which publishes an uncertainty range around each one. Those ranges are wide for countries without complete birth and death registration, and they are not carried through into these projections. A full treatment would project the lower and upper estimates as well as the central one.
+
+# %% [markdown]
 # ## 5. What is associated with child survival?
 #
 # ### Setting up the model
@@ -484,6 +531,8 @@ summary = {
     "sdg": json.loads(sdg.to_json(orient="records")),
     "sdg_counts": {k: int(v) for k, v in counts.items()},
     "excess_deaths_2030": float(off["excess_deaths_2030"].sum()),
+    "sensitivity": json.loads(sensitivity.reset_index().to_json(orient="records")),
+    "borderline_count": int(sdg["borderline"].sum()),
     "metrics": json.loads(metrics.reset_index().to_json(orient="records")),
     "importance": [{"feature": LABELS[k], "value": float(v)} for k, v in importance.sort_values(ascending=False).items()],
     "curves": {f: {"x": [float(np.exp(v)) if f == "log_gdp" else float(v) for v in grid], "y": curve_values[f]} for f, grid in curves.items()},
@@ -515,6 +564,6 @@ print("model.json", round((APP / "model.json").stat().st_size / 1024), "KB; summ
 # * The model describes associations across countries. It does not show that changing one indicator would cause mortality to change by the amount on the curve. The dashboard's what-if tool should be read as "countries that look like this tend to have mortality of about this", not as a forecast of a policy's effect.
 # * Mortality estimates for countries without complete vital registration are themselves modelled by the UN, with wide uncertainty.
 # * National averages hide large differences within countries, between regions and between rich and poor households.
-# * The projection to 2030 is a simple continuation of the last ten years and assumes the number of births stays constant.
+# * The projection to 2030 is a simple continuation of the last ten years and assumes the number of births stays constant. It is a single number with no uncertainty interval. Changing the trend window to 5 or 15 years moves only one country across the line each time, but the countries flagged as too close to call could plausibly land on either side.
 #
 # **Next steps.** Repeat the analysis at subnational level with DHS survey data, separate neonatal from post-neonatal mortality since their causes differ, and use within-country changes over time (fixed effects) to get closer to causal estimates.
