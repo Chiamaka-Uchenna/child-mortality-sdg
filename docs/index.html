@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Child survival and the 2030 target</title>
+<meta name="description" content="Which countries are on track to meet the SDG target for under-five mortality, and what separates countries that do well. Built on World Bank data.">
+<link rel="stylesheet" href="app.css">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <p class="eyebrow">Public health · Global child survival</p>
+    <h1>Who will miss the 2030 target for child survival?</h1>
+    <p class="lede">Every country has committed to an under-five mortality rate of 25 or fewer deaths per 1,000 live births by 2030. This dashboard tracks progress for 196 countries, projects each one to 2030, and explores what separates countries that do well.</p>
+    <div class="links">
+      <a href="https://github.com/Chiamaka-Uchenna/child-mortality-sdg/blob/main/notebooks/child_mortality_sdg.ipynb">Read the notebook</a>
+      <a href="https://github.com/Chiamaka-Uchenna/child-mortality-sdg">Source on GitHub</a>
+      <a href="https://databank.worldbank.org/source/world-development-indicators">Dataset (World Bank)</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section><div class="tiles" id="tiles"></div></section>
+
+  <section>
+    <h2>Under-five mortality by country</h2>
+    <p class="section-note">Deaths before age five per 1,000 live births. Move the slider to see the change since 2000.</p>
+    <div class="card">
+      <div class="controls">
+        <label class="field" style="min-width:280px">Year <output id="o-year"></output><input type="range" id="s-year" step="1"></label>
+      </div>
+      <div class="chart tall" id="c-map"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>2030 tracker</h2>
+    <p class="section-note">Each country's trend over the last ten years is projected forward to 2030. The required pace is the yearly reduction needed from now on to reach 25.</p>
+    <div class="card">
+      <div class="controls">
+        <label class="field">Country<select id="f-country"></select></label>
+        <label class="field">Show in table<select id="f-status"><option>Off track</option><option>On track</option><option>Target met</option></select></label>
+      </div>
+      <div class="result" style="margin-top:0;margin-bottom:16px">
+        <div>
+          <div class="label" id="trk-label"></div>
+          <div class="big" id="trk-rate">–</div>
+          <span class="badge" id="trk-status"></span>
+        </div>
+        <div><p id="trk-text"></p><p id="trk-text2"></p></div>
+      </div>
+      <div class="chart" id="c-country"></div>
+      <div class="table-wrap" style="max-height:340px;margin-top:14px"><table id="t-sdg"></table></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What-if explorer</h2>
+    <p class="section-note">Pick a country and change its indicators. The model, running in your browser, estimates the mortality rate typical of countries with that profile. This shows associations across countries. It is not a forecast of what a policy would achieve.</p>
+    <div class="card">
+      <div class="controls"><label class="field">Country<select id="w-country"></select></label></div>
+      <div class="form-grid" id="sliders"></div>
+      <div class="result">
+        <div>
+          <div class="label">Model estimate for this profile</div>
+          <div class="big" id="w-pred">–</div>
+          <span class="badge" id="w-badge"></span>
+        </div>
+        <div><p id="w-text"></p><p id="w-text2"></p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The global picture</h2>
+    <div class="grid">
+      <div class="card"><h3>World under-five mortality rate</h3><p class="sub">Halved since 2000, but still above the target of 25.</p><div class="chart" id="c-world"></div></div>
+      <div class="card"><h3>Where children die</h3><p class="sub" id="region-text"></p><div class="chart" id="c-region"></div></div>
+      <div class="card"><h3>Ten countries with the most deaths</h3><p class="sub" id="top-text"></p><div class="chart" id="c-top"></div></div>
+      <div class="card"><h3>Countries by 2030 status</h3><p class="sub">On current trends.</p><div class="chart" id="c-status"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What goes with child survival</h2>
+    <p class="section-note">A model trained on 13 development indicators, tested on countries it had not seen. Income alone explains 72 percent of the variation between countries. Adding the other indicators raises that to 89 percent.</p>
+    <div class="grid">
+      <div class="card"><h3>How much each indicator moves the prediction</h3><p class="sub">Mean absolute SHAP value, log mortality.</p><div class="chart tall" id="c-imp"></div></div>
+      <div class="card"><h3>Predicted mortality as sanitation changes</h3><p class="sub">Average over all country-years, other indicators unchanged.</p><div class="chart" id="c-curve"></div>
+        <div class="controls" style="margin:10px 0 0"><label class="field">Indicator<select id="f-curve"><option value="basic_sanitation">Basic sanitation (% of people)</option><option value="fertility">Births per woman</option><option value="dpt_immunisation">DPT immunisation (% of infants)</option><option value="log_gdp">GDP per capita (PPP dollars)</option></select></label></div></div>
+      <div class="card"><h3>Lower mortality than predicted</h3><p class="sub">Actual against the model's estimate from other countries.</p><div class="chart" id="c-better"></div></div>
+      <div class="card"><h3>Higher mortality than predicted</h3><p class="sub">Something the indicators miss is costing lives.</p><div class="chart" id="c-worse"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Method and limits</h2>
+    <ul class="notes">
+      <li>Data: World Bank World Development Indicators, 196 countries, 2000 onwards. Mortality estimates are from the UN Inter-agency Group for Child Mortality Estimation.</li>
+      <li>Projection: a log-linear trend over the last ten years, continued to 2030.</li>
+      <li>Model: gradient boosted trees with monotonic constraints (more immunisation, water or sanitation can never raise predicted mortality), validated by holding out whole countries.</li>
+      <li>The model describes associations across countries, not causal effects. Estimates for countries without complete birth and death registration carry wide uncertainty, and national averages hide inequality within countries.</li>
+    </ul>
+  </section>
+</main>
+
+<footer><div class="wrap">Built by Chiamaka Uchenna. Data from the World Bank World Development Indicators.</div></footer>
+
+<script src="core.js"></script>
+<script>
+const STATUS_CLASS = { "Target met": "good", "On track": "warning", "Off track": "critical" };
+const SLIDERS = [
+  ["basic_sanitation", "Basic sanitation (% of people)", 1, (v) => v, (v) => v, 0],
+  ["basic_water", "Basic drinking water (% of people)", 1, (v) => v, (v) => v, 0],
+  ["dpt_immunisation", "DPT immunisation (% of infants)", 1, (v) => v, (v) => v, 0],
+  ["electricity", "Access to electricity (% of people)", 1, (v) => v, (v) => v, 0],
+  ["fertility", "Births per woman", 0.1, (v) => v, (v) => v, 1],
+  ["undernourishment", "Undernourishment (% of people)", 0.5, (v) => v, (v) => v, 1],
+  ["log_gdp", "GDP per capita (PPP dollars)", 100, Math.exp, Math.log, 0],
+  ["log_health_spending", "Health spending per person (US dollars)", 5, Math.exp, Math.log, 0],
+];
+
+(async () => {
+  const [model, s] = await Promise.all([DS.load("data/model.json"), DS.load("data/summary.json")]);
+  const world = s.world;
+  const w0 = world[0], w1 = world[world.length - 1];
+  const sdgBy = Object.fromEntries(s.sdg.map((r) => [r.iso3, r]));
+
+  DS.tiles("tiles", [
+    { label: `Under-five deaths in ${w1.year}`, value: `${(w1.deaths / 1e6).toFixed(1)}m`, note: `down from ${(w0.deaths / 1e6).toFixed(1)}m in ${w0.year}` },
+    { label: "World mortality rate", value: DS.fmt(w1.u5mr, 0), note: `per 1,000 live births, ${w0.u5mr.toFixed(0)} in ${w0.year}` },
+    { label: "Countries off track for 2030", value: String(s.sdg_counts["Off track"]), note: `of ${s.countries} countries` },
+    { label: "Pace needed by off-track countries", value: "4x", note: "median 2.6% a year now, 11% needed" },
+  ]);
+
+  /* map */
+  const slider = document.getElementById("s-year");
+  const years = s.map.years;
+  slider.min = years[0]; slider.max = years[years.length - 1]; slider.value = years[years.length - 1];
+  const drawMap = () => {
+    const year = Number(slider.value);
+    const col = years.indexOf(year);
+    document.getElementById("o-year").textContent = year;
+    DS.plot("c-map", [{
+      type: "choropleth", locations: s.map.iso3, z: s.map.values.map((row) => row[col]), text: s.map.names,
+      colorscale: [[0, DS.css("--surface-2")], [0.15, "#a9c9ef"], [0.4, DS.css("--series-1")], [1, "#0b2a5c"]], zmin: 0, zmax: 150,
+      marker: { line: { color: DS.css("--surface-1"), width: 0.5 } },
+      colorbar: { title: { text: "per 1,000", side: "right" }, thickness: 12, outlinewidth: 0, len: 0.8 },
+      hovertemplate: "%{text}<br>%{z:.0f} deaths per 1,000 live births<extra></extra>",
+    }], {
+      geo: { projection: { type: "natural earth" }, showframe: false, showcoastlines: false, bgcolor: "rgba(0,0,0,0)", showland: true, landcolor: DS.css("--grid"), showcountries: false },
+      margin: { l: 0, r: 0, t: 0, b: 0 },
+    }, { table: false });
+  };
+  slider.addEventListener("input", drawMap);
+  drawMap();
+
+  /* tracker */
+  const countryOptions = s.map.iso3.map((iso, i) => [iso, s.map.names[i]]).filter(([iso]) => sdgBy[iso]).sort((a, b) => a[1].localeCompare(b[1]));
+  DS.fill(document.getElementById("f-country"), countryOptions, "NGA");
+  const track = () => {
+    const iso = document.getElementById("f-country").value;
+    const r = sdgBy[iso];
+    const row = s.map.values[s.map.iso3.indexOf(iso)];
+    document.getElementById("trk-label").textContent = `${r.country}, ${s.last_year}`;
+    document.getElementById("trk-rate").textContent = `${r.u5mr.toFixed(0)} per 1,000`;
+    const badge = document.getElementById("trk-status");
+    badge.textContent = r.status; badge.className = `badge ${STATUS_CLASS[r.status]}`;
+    document.getElementById("trk-text").textContent = r.status === "Target met"
+      ? `${r.country} is already at or below the target of 25.`
+      : `On the trend of the last ten years, ${r.country} reaches ${r.projected_2030.toFixed(0)} per 1,000 in 2030.`;
+    document.getElementById("trk-text2").textContent = r.status === "Target met"
+      ? `Mortality has been ${r.arr >= 0 ? "falling" : "rising"} by ${Math.abs(r.arr * 100).toFixed(1)}% a year.`
+      : `Mortality is ${r.arr >= 0 ? "falling" : "rising"} by ${Math.abs(r.arr * 100).toFixed(1)}% a year. Reaching 25 by 2030 needs ${(r.required_arr * 100).toFixed(1)}% a year. About ${DS.fmt(r.deaths, 0)} children under five died in ${s.last_year}.`;
+    const future = [s.last_year, 2030];
+    DS.plot("c-country", [
+      { x: years, y: row, mode: "lines", name: "Estimated rate", line: { color: DS.css("--series-1"), width: 2 }, hovertemplate: "%{x}<br>%{y:.0f} per 1,000<extra></extra>" },
+      { x: future, y: [r.u5mr, r.projected_2030], mode: "lines+markers", name: "Projection on current trend", line: { color: DS.css("--series-2"), width: 2, dash: "dash" }, marker: { size: 7 }, hovertemplate: "%{x}<br>%{y:.0f} per 1,000<extra></extra>" },
+    ], {
+      xaxis: { range: [2000, 2030.5] }, yaxis: { title: "Deaths per 1,000 live births", rangemode: "tozero" },
+      shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: 25, y1: 25, line: { color: DS.css("--text-muted"), dash: "dot", width: 1.5 } }],
+      annotations: [{ xref: "paper", x: 0, y: 25, yshift: 9, xanchor: "left", text: "Target: 25", showarrow: false, font: { size: 11, color: DS.css("--text-muted") } }],
+    }, { table: false });
+  };
+  document.getElementById("f-country").addEventListener("change", track);
+  track();
+
+  const sdgTable = document.getElementById("t-sdg");
+  const drawTable = () => {
+    const status = document.getElementById("f-status").value;
+    sdgTable.innerHTML = "";
+    const head = sdgTable.insertRow();
+    ["Country", "Region", `Rate ${s.last_year}`, "Yearly reduction", "Projected 2030", "Reduction needed"].forEach((t) => { const th = document.createElement("th"); th.textContent = t; head.appendChild(th); });
+    s.sdg.filter((r) => r.status === status).sort((a, b) => b.projected_2030 - a.projected_2030).forEach((r) => {
+      const row = sdgTable.insertRow();
+      [r.country, r.region, r.u5mr.toFixed(0), `${(r.arr * 100).toFixed(1)}%`, r.projected_2030.toFixed(0), r.status === "Target met" ? "met" : `${(r.required_arr * 100).toFixed(1)}%`]
+        .forEach((v) => { row.insertCell().textContent = v; });
+    });
+  };
+  document.getElementById("f-status").addEventListener("change", drawTable);
+  drawTable();
+
+  /* what-if */
+  const profiles = Object.fromEntries(s.profiles.map((p) => [p.iso3, p]));
+  DS.fill(document.getElementById("w-country"), s.profiles.map((p) => [p.iso3, p.country]).sort((a, b) => a[1].localeCompare(b[1])), "NGA");
+  const box = document.getElementById("sliders");
+  let current = null, baseline = null;
+  const predictFrom = (features) => Math.exp(DS.predict(model, model.features.map((f) => features[f])));
+  const showWhatIf = () => {
+    const p = profiles[document.getElementById("w-country").value];
+    const pred = predictFrom(current);
+    document.getElementById("w-pred").textContent = `${pred.toFixed(0)} per 1,000`;
+    const change = pred / baseline - 1;
+    const badge = document.getElementById("w-badge");
+    badge.textContent = Math.abs(change) < 0.005 ? "Current profile" : `${change > 0 ? "+" : ""}${(change * 100).toFixed(0)}% against current profile`;
+    badge.className = `badge ${Math.abs(change) < 0.005 ? "warning" : change < 0 ? "good" : "critical"}`;
+    document.getElementById("w-text").textContent =
+      `${p.country}: the UN estimate for ${p.year} is ${p.u5mr.toFixed(0)} per 1,000. Countries with ${p.country}'s current indicators typically have about ${baseline.toFixed(0)}.`;
+    document.getElementById("w-text2").textContent = pred <= 25
+      ? "A country with the adjusted profile would typically be at or below the 2030 target of 25."
+      : "A country with the adjusted profile would typically still be above the 2030 target of 25.";
+  };
+  const buildSliders = () => {
+    const p = profiles[document.getElementById("w-country").value];
+    current = { ...p.features };
+    baseline = predictFrom(current);
+    box.innerHTML = "";
+    SLIDERS.forEach(([key, label, step, show, back, digits]) => {
+      const [lo, hi] = s.ranges[key];
+      const field = document.createElement("label");
+      field.className = "field";
+      const out = document.createElement("output");
+      const input = document.createElement("input");
+      input.type = "range";
+      const value = p.features[key];
+      const minShown = Math.floor(show(lo) / step) * step, maxShown = Math.ceil(show(hi) / step) * step;
+      input.min = minShown; input.max = maxShown; input.step = step;
+      if (value === null) { input.disabled = true; out.textContent = "no data"; input.value = minShown; }
+      else { input.value = show(value); out.textContent = DS.fmt(show(value), digits); }
+      input.addEventListener("input", () => {
+        current[key] = back(Math.max(Number(input.value), step));
+        out.textContent = DS.fmt(Number(input.value), digits);
+        showWhatIf();
+      });
+      field.append(document.createTextNode(`${label} `), out, input);
+      box.appendChild(field);
+    });
+    showWhatIf();
+  };
+  document.getElementById("w-country").addEventListener("change", buildSliders);
+  buildSliders();
+
+  /* global picture */
+  DS.plot("c-world", [{ x: world.map((r) => r.year), y: world.map((r) => r.u5mr), mode: "lines", name: "World rate", line: { color: DS.css("--series-1"), width: 2 },
+    customdata: world.map((r) => r.deaths / 1e6), hovertemplate: "%{x}<br>%{y:.0f} per 1,000<br>%{customdata:.1f} million deaths<extra></extra>" }],
+    { yaxis: { title: "Deaths per 1,000 live births", rangemode: "tozero" },
+      shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: 25, y1: 25, line: { color: DS.css("--text-muted"), dash: "dot", width: 1.5 } }],
+      annotations: [{ xref: "paper", x: 0, y: 25, yshift: 9, xanchor: "left", text: "Target: 25", showarrow: false, font: { size: 11, color: DS.css("--text-muted") } }] });
+
+  const regions = [...s.regions].reverse();
+  document.getElementById("region-text").textContent = `Sub-Saharan Africa accounts for ${Math.round(s.regions[0].share_of_deaths * 100)}% of deaths.`;
+  DS.plot("c-region", [{ type: "bar", orientation: "h", y: regions.map((r) => r.region), x: regions.map((r) => r.share_of_deaths * 100), name: "Share of deaths (%)",
+    marker: { color: DS.css("--series-1") }, text: regions.map((r) => `${Math.round(r.share_of_deaths * 100)}%`), textposition: "outside", cliponaxis: false,
+    hovertemplate: "%{y}<br>%{x:.1f}% of under-five deaths<extra></extra>" }],
+    { xaxis: { title: `Share of under-five deaths, ${s.last_year} (%)`, range: [0, 72] }, yaxis: { showgrid: false }, bargap: 0.3, margin: { l: 190, r: 30, t: 8, b: 44 } });
+
+  const top = [...s.top_countries].reverse();
+  document.getElementById("top-text").textContent = `Together they account for ${Math.round(s.top10_share * 100)}% of the world total.`;
+  DS.plot("c-top", [{ type: "bar", orientation: "h", y: top.map((r) => r.country), x: top.map((r) => r.u5_deaths / 1000), name: "Deaths (thousands)",
+    marker: { color: DS.css("--series-1") }, customdata: top.map((r) => r.u5mr), hovertemplate: "%{y}<br>%{x:,.0f} thousand deaths<br>%{customdata:.0f} per 1,000<extra></extra>" }],
+    { xaxis: { title: `Under-five deaths, ${s.last_year} (thousands)` }, yaxis: { showgrid: false }, bargap: 0.3, margin: { l: 140, r: 16, t: 8, b: 44 } });
+
+  const order = ["Target met", "On track", "Off track"];
+  DS.plot("c-status", [{ type: "bar", x: order, y: order.map((k) => s.sdg_counts[k] || 0), name: "Countries", marker: { color: DS.css("--series-1") },
+    text: order.map((k) => String(s.sdg_counts[k] || 0)), textposition: "outside", cliponaxis: false, hovertemplate: "%{x}<br>%{y} countries<extra></extra>" }],
+    { xaxis: { showgrid: false }, yaxis: { title: "Countries" }, bargap: 0.4, margin: { l: 56, r: 16, t: 24, b: 44 } });
+
+  /* model */
+  const imp = [...s.importance].reverse();
+  DS.plot("c-imp", [{ type: "bar", orientation: "h", y: imp.map((r) => r.feature), x: imp.map((r) => r.value), name: "Mean |SHAP|", marker: { color: DS.css("--series-1") },
+    hovertemplate: "%{y}<br>%{x:.3f}<extra></extra>" }],
+    { xaxis: { title: "Mean absolute SHAP value" }, yaxis: { showgrid: false }, bargap: 0.3, margin: { l: 190, r: 16, t: 8, b: 44 } });
+
+  const curveSelect = document.getElementById("f-curve");
+  const drawCurve = () => {
+    const key = curveSelect.value;
+    const c = s.curves[key];
+    DS.plot("c-curve", [{ x: c.x, y: c.y, mode: "lines", name: "Predicted mortality", line: { color: DS.css("--series-1"), width: 2 },
+      hovertemplate: "%{x:,.1f}<br>%{y:.0f} per 1,000<extra></extra>" }],
+      { xaxis: { title: curveSelect.selectedOptions[0].textContent, type: key === "log_gdp" ? "log" : "linear" }, yaxis: { title: "Predicted deaths per 1,000", rangemode: "tozero" } });
+  };
+  curveSelect.addEventListener("change", drawCurve);
+  drawCurve();
+
+  const gap = (id, rows, color) => {
+    const data = [...rows].reverse();
+    DS.plot(id, [{ type: "bar", orientation: "h", y: data.map((r) => r.country), x: data.map((r) => (r.ratio - 1) * 100), name: "Actual against predicted (%)",
+      marker: { color: DS.css(color) }, customdata: data.map((r) => [r.actual, r.predicted]),
+      hovertemplate: "%{y}<br>Actual %{customdata[0]:.0f}, predicted %{customdata[1]:.0f} per 1,000<extra></extra>" }],
+      { xaxis: { title: "Actual mortality relative to prediction (%)", zeroline: true, zerolinecolor: DS.css("--border") }, yaxis: { showgrid: false }, bargap: 0.3, margin: { l: 150, r: 16, t: 8, b: 44 } });
+  };
+  gap("c-better", s.better, "--series-3");
+  gap("c-worse", s.worse, "--series-2");
+})().catch((err) => {
+  document.querySelector("main").insertAdjacentHTML("afterbegin", `<p class="section-note">Could not load the dashboard data: ${err.message}</p>`);
+});
+</script>
+</body>
+</html>
