@@ -2,7 +2,7 @@
 
 Which countries will miss the SDG target for under-five mortality, how far off they are, and what separates countries that do better than their income predicts.
 
-**[Open the live dashboard](https://chiamaka-uchenna.github.io/child-mortality-sdg/)** · **[Read the notebook](notebooks/child_mortality_sdg.ipynb)**
+**[Open the Streamlit app](https://child-mortality-sdg-enzebm2tf9bzthvy2s96xu.streamlit.app/)** · **[Open the web dashboard](https://chiamaka-uchenna.github.io/child-mortality-sdg/)** · **[Read the notebook](notebooks/child_mortality_sdg.ipynb)**
 
 ![Key chart from the analysis](assets/preview.png)
 
@@ -40,7 +40,7 @@ The dashboard is a static page served by GitHub Pages from the `docs/` folder. T
 
 ## Streamlit app
 
-The same model and charts are also packaged as a Streamlit app in `app/`, for hosting on Streamlit Community Cloud or any Python server:
+The same model and charts are deployed as a Streamlit app on Streamlit Community Cloud: [https://child-mortality-sdg-enzebm2tf9bzthvy2s96xu.streamlit.app/](https://child-mortality-sdg-enzebm2tf9bzthvy2s96xu.streamlit.app/). If the app has been idle it takes a few seconds to wake up. The code is in `app/`. To run it locally:
 
 ```bash
 pip install -r app/requirements.txt
